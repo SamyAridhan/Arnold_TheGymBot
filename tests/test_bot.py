@@ -257,3 +257,9 @@ def test_parser():
 
 def test_commands_registered():
     assert [c for c, _ in COMMANDS] == ["go", "undo", "test", "cleartest"]
+
+
+def test_startup_announce_sends_home():
+    b = Bot()
+    b.app.announce()
+    assert "Arnold is online" in b.text and "UB1" in b.text

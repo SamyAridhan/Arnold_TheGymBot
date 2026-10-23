@@ -2,7 +2,11 @@ name: gym-bot
 
 # Same pattern as Hans: each run lasts ~5h40m, the hourly schedule queues the next
 # one, and concurrency makes it take over the moment the current run ends.
+# A push to main also starts a run, so a new version goes live without a manual click
+# (if a run is already going, the new one waits for it; cancel the old run to switch now).
 on:
+  push:
+    branches: [main]
   schedule:
     - cron: "0 * * * *"
   workflow_dispatch:
@@ -29,4 +33,5 @@ jobs:
           SHEET_ID: ${{ secrets.SHEET_ID }}
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           MAX_RUNTIME: "20400"
+          ANNOUNCE: ${{ github.event_name != 'schedule' }}   # hello on new versions, not hourly handovers
           PYTHONUNBUFFERED: "1"

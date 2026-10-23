@@ -790,12 +790,24 @@ class App:
             self.finish(auto=True)
             self.render()
 
-    def run(self, max_runtime: int = 0) -> None:
+    def announce(self) -> None:
+        """Say hello with the Home screen (or the open session). Needs you to have
+        pressed Start in the bot chat once: Telegram bots can't message you first."""
+        self.hint = "💪 Arnold is online."
+        try:
+            self.render(fresh=True)
+        except TelegramError as e:
+            self.hint = ""
+            self.log(f"startup message not sent (open the bot and press Start once): {e}")
+
+    def run(self, max_runtime: int = 0, announce: bool = False) -> None:
         self.start()
         try:
             self.tg.set_commands(COMMANDS)
         except Exception as e:  # noqa: BLE001
             self.log(f"setMyCommands failed: {e}")
+        if announce:
+            self.announce()
         deadline = time.monotonic() + max_runtime if max_runtime else None
         offset = 0
         while deadline is None or time.monotonic() < deadline:

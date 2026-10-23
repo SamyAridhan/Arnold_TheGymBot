@@ -12,6 +12,7 @@ class Config:
     tz: str = "Asia/Kuala_Lumpur"
     max_runtime: int = 0         # seconds; 0 = run forever (GitHub Actions sets ~5h40m)
     idle_close_min: int = 90     # auto-close a session after this long with no sets
+    announce: bool = False       # send an "online" message at startup (new version, manual run)
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -27,4 +28,5 @@ class Config:
             tz=os.environ.get("TZ_NAME", "Asia/Kuala_Lumpur"),
             max_runtime=int(os.environ.get("MAX_RUNTIME", "0")),
             idle_close_min=int(os.environ.get("IDLE_CLOSE_MIN", "90")),
+            announce=os.environ.get("ANNOUNCE", "").lower() == "true",
         )

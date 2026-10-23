@@ -12,7 +12,7 @@ def main() -> None:
     app = App(cfg.chat_id, Telegram(cfg.token), Store(real, test), Clock(cfg.tz),
               idle_close_min=cfg.idle_close_min)
     print("gym bot running")
-    app.run(cfg.max_runtime)
+    app.run(cfg.max_runtime, announce=cfg.announce)
 
 
 if __name__ == "__main__":
