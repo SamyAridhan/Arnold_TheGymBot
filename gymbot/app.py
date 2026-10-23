@@ -17,9 +17,8 @@ from .clock import Clock, parse_stamp, stamp
 from .store import Store
 from .telegram import TelegramError, keyboard
 
-COMMANDS = [("go", "Home / start a session"), ("undo", "Remove the last logged set"),
-            ("test", "Try a session without touching your real log"),
-            ("cleartest", "Delete everything in the Test tabs")]
+COMMANDS = [("go", "Home / start a session"), ("undo", "Undo last set"),
+            ("test", "Test session (not your real log)"), ("cleartest", "Clear test data")]
 
 
 @dataclass
