@@ -32,6 +32,7 @@ class Active:
     extra: list[str] = field(default_factory=list)          # exercises added from other sessions
     variant: dict[str, str] = field(default_factory=dict)   # exercise -> chosen variant
     extra_slots: dict[str, int] = field(default_factory=dict)
+    warm_count: dict[str, int] = field(default_factory=dict)  # warm-up count you chose per exercise
     first: str | None = None                    # first exercise with a logged set
     cur: str | None = None                      # exercise on screen
     slot: str | None = None                     # slot the stepper is on
@@ -105,10 +106,26 @@ class App:
             c.setup_note = self.test_setup[(ex, var)]
         return c
 
+    def base_warmups(self, ex: str, var: str) -> int:
+        a = self.a()
+        cfg = self.cfg(ex, var)
+        first = a.first is None or a.first == ex
+        return len([s for s in m.plan_slots(cfg, first) if s.startswith("W")])
+
+    def warmups(self, ex: str, var: str) -> int:
+        return self.a().warm_count.get(f"{ex}|{var}", self.base_warmups(ex, var))
+
+    def can_change_warmups(self, ex: str, var: str) -> bool:
+        """Only before the first working set, so the slot order never jumps backwards."""
+        a = self.a()
+        return not a.editing and not any(not str(r["slot"]).startswith("W")
+                                         for r in self.today_sets(ex, var))
+
     def slots(self, ex: str, var: str) -> list[str]:
         a = self.a()
-        first = a.first is None or a.first == ex
-        plan = m.plan_slots(self.cfg(ex, var), first)
+        cfg = self.cfg(ex, var)
+        plan = ([f"W{i}" for i in range(1, self.warmups(ex, var) + 1)]
+                + [f"S{i}" for i in range(1, cfg.working_sets + 1)])
         extras = [f"X{i}" for i in range(1, a.extra_slots.get(f"{ex}|{var}", 0) + 1)]
         logged = [str(r["slot"]) for r in self.today_sets(ex, var)]
         return plan + extras + [s for s in logged if s not in plan + extras]
@@ -162,6 +179,16 @@ class App:
             if str(r["slot"]).startswith("X"):
                 k = f"{ex}|{r['variant']}"
                 a.extra_slots[k] = max(a.extra_slots.get(k, 0), int(str(r["slot"])[1:] or 1))
+        # Rebuild warm-up changes from what was logged (they aren't stored separately):
+        # an extra W3 means one was added; a working set logged with W2 empty means one was removed.
+        for ex, var in {(r["exercise"], str(r["variant"])) for r in sets}:
+            rows = [r for r in sets if r["exercise"] == ex and str(r["variant"]) == var]
+            w = [int(str(r["slot"])[1:]) for r in rows
+                 if str(r["slot"]).startswith("W") and str(r["slot"])[1:].isdigit()]
+            top, base = max(w, default=0), self.base_warmups(ex, var)
+            working = any(not str(r["slot"]).startswith("W") for r in rows)
+            if top > base or (working and top < base):
+                a.warm_count[f"{ex}|{var}"] = top
         times = [t for t in (parse_stamp(r["set_time"], tz) for r in sets) if t]
         a.last_activity = self.now() if reopened else max(times + [start])
 
@@ -322,6 +349,15 @@ class App:
         logged = [s for s in self.slots(ex, var) if s in today]
         for i in range(0, len(logged), 4):
             rows.append([(f"✏ {s}", f"ed:{s}") for s in logged[i:i + 4]])
+        if self.can_change_warmups(ex, var):
+            w = self.warmups(ex, var)
+            warm = []
+            if w > 0 and f"W{w}" not in today:
+                warm.append(("➖ Warm-up", "wm"))
+            if w < 5:
+                warm.append(("➕ Warm-up", "wp"))
+            if warm:
+                rows.append(warm)
         rows.append([("➕ Set", "x"), ("🔁 Variant", "var"), ("📝 Notes", "nt")])
         rows.append([("📋 Pick next", "pn")])
         return text, rows
@@ -732,6 +768,20 @@ class App:
             self.view = "card"
         elif cmd == "cxl":
             a.slot, a.editing = None, False
+            self.view = "card"
+        elif cmd in ("wp", "wm"):
+            var = self.variant_of(a.cur)
+            if self.can_change_warmups(a.cur, var):
+                w = self.warmups(a.cur, var)
+                today = {str(r["slot"]) for r in self.today_sets(a.cur, var)}
+                k = f"{a.cur}|{var}"
+                if cmd == "wp" and w < 5:
+                    a.warm_count[k] = w + 1
+                    self.toast = f"{w + 1} warm-ups"
+                elif cmd == "wm" and w > 0 and f"W{w}" not in today:
+                    a.warm_count[k] = w - 1
+                    self.toast = f"{w - 1} warm-ups"
+                a.slot = None
             self.view = "card"
         elif cmd == "x":
             k = f"{a.cur}|{self.variant_of(a.cur)}"

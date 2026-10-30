@@ -263,3 +263,47 @@ def test_startup_announce_sends_home():
     b = Bot()
     b.app.announce()
     assert "Arnold is online" in b.text and "UB1" in b.text
+
+
+def test_first_exercise_can_drop_a_warmup():
+    b = Bot()
+    b.say("/go"); b.tap("UB1")                                  # chest: W1 W2 S1 S2
+    b.tap("Log")                                                # W1
+    b.tap("➖ Warm-up")
+    assert "W2" not in b.text and "▸ 9 x 4" in b.text           # straight to S1
+    b.tap("Log")
+    assert "Warm-up" not in " ".join(x["text"] for x in b.buttons())   # locked after a working set
+    rows = [r["slot"] for r in b.sets() if r["date"] == "2026-10-26"]
+    assert rows == ["W1", "S1"]
+
+
+def test_later_exercise_can_add_a_warmup():
+    b = Bot()
+    b.say("/go"); b.tap("UB1"); b.tap("Log")                    # chest is first
+    b.tap("Pick next"); b.tap("Shoulder press")
+    assert "W2" not in b.text
+    b.tap("➕ Warm-up")
+    assert "W2" in b.text
+    b.tap("Log"); b.tap("Log"); b.tap("Log")
+    rows = [r["slot"] for r in b.sets() if r["exercise"] == "Shoulder press" and r["date"] == "2026-10-26"]
+    assert rows == ["W1", "W2", "S1"]
+
+
+def test_warmup_changes_survive_restart():
+    b = Bot()
+    b.say("/go"); b.tap("UB1"); b.tap("Log"); b.tap("➖ Warm-up"); b.tap("Log")   # chest W1, S1
+    b.tap("Pick next"); b.tap("Shoulder press"); b.tap("➕ Warm-up"); b.tap("Log"); b.tap("Log")  # W1 W2
+    b2 = Bot(tables=(b.real, b.test), start=datetime(2026, 10, 26, 19, 30))
+    b2.say("/go"); b2.tap("Chest press")
+    assert "W2" not in b2.text and "▸ 7 x 8" in b2.text        # still skipped, next is S2
+    b2.tap("Pick next"); b2.tap("Shoulder press")
+    assert "W2" in b2.text and "▸ 4 x 7" in b2.text             # extra warm-up kept, next is S1
+
+
+def test_chosen_warmup_count_stays_if_another_exercise_goes_first():
+    b = Bot()
+    b.say("/go"); b.tap("UB1")
+    b.tap("➖ Warm-up")                                          # chest: 1 warm-up, nothing logged
+    b.tap("Pick next"); b.tap("Bicep curl"); b.tap("Log")       # curl goes first instead
+    b.tap("Pick next"); b.tap("Chest press")
+    assert "W1" in b.text and "W2" not in b.text                 # still 1, not 0
