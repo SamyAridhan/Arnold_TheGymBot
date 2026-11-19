@@ -35,7 +35,8 @@ The bot creates the `Test Sets`, `Test Sessions` and `Test Notes` tabs itself on
    | `GOOGLE_CREDENTIALS` | the whole contents of the JSON key file |
 
 3. **Actions → gym-bot → Run workflow** to start it now. After that it keeps itself
-   running (each run ~5h40m, the next one takes over).
+   running: each run lasts ~5h40m and starts the next one when it finishes. The hourly
+   schedule is only a backup, since GitHub often skips scheduled runs.
 
 > **Minutes:** GitHub Free gives a private repo 2,000 Actions minutes a month, and
 > running 24/7 needs about 44,000. Standard runners are free in a **public** repo,
