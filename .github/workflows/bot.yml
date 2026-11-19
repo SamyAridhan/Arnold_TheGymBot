@@ -1,7 +1,10 @@
 name: gym-bot
 
-# Same pattern as Hans: each run lasts ~5h40m, the hourly schedule queues the next
-# one, and concurrency makes it take over the moment the current run ends.
+# Each run lasts ~5h40m. When it finishes cleanly it starts the next run itself
+# (workflow_dispatch), and concurrency makes that run take over the moment this one ends.
+# GitHub's schedule is only a backup: it is best-effort and often skips hours, so it
+# can't be what keeps the bot alive.
+# If the bot fails to start, the chain stops (no crash loop); the schedule retries.
 # A push to main also starts a run, so a new version goes live without a manual click
 # (if a run is already going, the new one waits for it; cancel the old run to switch now).
 on:
@@ -10,10 +13,19 @@ on:
   schedule:
     - cron: "0 * * * *"
   workflow_dispatch:
+    inputs:
+      chained:
+        description: "Started by the previous run (internal; leave unticked)"
+        type: boolean
+        default: false
 
 concurrency:
   group: gym-bot
   cancel-in-progress: false
+
+permissions:
+  actions: write     # lets a run start the next one
+  contents: read
 
 jobs:
   run:
@@ -33,5 +45,10 @@ jobs:
           SHEET_ID: ${{ secrets.SHEET_ID }}
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           MAX_RUNTIME: "20400"
-          ANNOUNCE: ${{ github.event_name != 'schedule' }}   # hello on new versions, not hourly handovers
+          # hello on new versions and manual starts, not on automatic handovers
+          ANNOUNCE: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.chained) }}
           PYTHONUNBUFFERED: "1"
+      - name: Start the next run
+        run: gh workflow run bot.yml --repo "$GITHUB_REPOSITORY" --ref main -f chained=true
+        env:
+          GH_TOKEN: ${{ github.token }}
